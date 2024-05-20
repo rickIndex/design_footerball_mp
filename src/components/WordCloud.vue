@@ -80,6 +80,9 @@ watch(
   () => props.data,
   () => {
     renderChart()
+  },
+  {
+    deep: true
   }
 )
 </script>

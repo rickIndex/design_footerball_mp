@@ -1,30 +1,47 @@
 import axios from 'axios'
 
 const service = axios.create({
-	baseURL: 'https://api.imooc-web.lgdsunday.club/api',
-	timeout: 5000
+  baseURL: 'http://8.138.17.244:9000/',
+  timeout: 10000
 })
+
+//获取token
+const token = localStorage.getItem('user-token');
 
 // 请求拦截器
-service.interceptors.request.use(
-	(config) => {
-		config.headers.icode = 'input you icode'
-		return config // 必须返回配置
-	},
-	(error) => {
-		return Promise.reject(error)
-	}
-)
+axios.interceptors.request.use(config => {
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, error => {
+  return Promise.reject(error);
+});
 
 // 响应拦截器
-service.interceptors.response.use((response) => {
-	const { success, message, data } = response.data
-	//   要根据success的成功与否决定下面的操作
-	if (success) {
-		return data
-	} else {
-		return Promise.reject(new Error(message))
-	}
-})
+service.interceptors.response.use(
+  response => {
+    console.log(response);
+    const { code, message, data } = response.data;
+    // 根据code的值决定下面的操作
+    if (code === 200) {
+      return data;
+    }
+  },
+  error => {
+    if (error.response) {
+      return Promise.resolve(error.response);  // 将错误响应的数据视为成功响应
+    } else {
+      return Promise.reject('网络错误')
+    }
+  }
+);
 
-export default service
+
+const request = {
+  get: (url, params) => service.get(url, params),
+  post: (url, data) => service.post(url, data),
+};
+
+export default request;
+

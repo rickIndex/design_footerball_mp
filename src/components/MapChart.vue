@@ -1,298 +1,168 @@
 <template>
-	<div>
-		<div ref="target" class="w-full h-full"></div>
-	</div>
+  <div>
+    <div ref="target" class="w-full h-full" :style="{ height: auto }"></div>
+    <div v-if="tooltipVisible" :style="tooltipStyle" class="tooltip">
+      <p><strong>名称:</strong> {{ tooltipData.name }}</p>
+      <p><strong>地址:</strong> {{ tooltipData.address }}</p>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, reactive } from 'vue'
 import * as echarts from 'echarts'
-import mapJson from '@/assets/MapData/china.json'
+import mapJson from '@/assets/MapData/shenzhen.json' // 导入深圳地图数据
+import api from '@/api/index.js' // 导入获取场馆数据的 API
 
-const props = defineProps({
-	data: {
-		type: Object,
-		required: true
-	}
+const target = ref(null) // 地图容器的引用
+let mChart = null // ECharts 实例
+const mapData = ref(null) // 场馆数据
+const processedData = ref([]) // 处理后的场馆数据
+
+// 提示框数据
+const tooltipData = reactive({
+  name: '',
+  address: ''
 })
 
-const target = ref(null)
-let mChart = null
-onMounted(() => {
-	mChart = echarts.init(target.value)
-	renderChart()
+// 提示框可见性
+const tooltipVisible = ref(false)
+// 提示框样式
+const tooltipStyle = reactive({
+  position: 'absolute',
+  left: '0px',
+  top: '0px',
+  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  color: '#fff',
+  padding: '10px',
+  borderRadius: '4px',
+  pointerEvents: 'none'
 })
 
+// 组件挂载后执行初始化操作
+onMounted(async () => {
+  try {
+    mapData.value = await api.getStadiumList()
+
+    processedData.value = mapData.value.map((item) => ({
+      name: item.name,
+      address: item.address, // 假设API返回的数据包含地址字段
+      value: [parseFloat(item.longitude), parseFloat(item.latitude)]
+    }))
+
+    if (target.value) {
+      mChart = echarts.init(target.value)
+      renderChart()
+    }
+  } catch (error) {
+    console.error('Error loading data or initializing chart:', error)
+  }
+})
+
+// 渲染地图图表
 const renderChart = () => {
-	// echarts 渲染
-	echarts.registerMap('china', mapJson)
+  // 注册深圳地图
+  echarts.registerMap('shenzhen', mapJson)
 
-	let options = {
-		// 时间线，提供了在多个 ECharts option 间进行切换
-		timeline: {
-			// 数据
-			data: props.data.voltageLevel,
-			// 类目轴
-			axisType: 'category',
-			// 自动切换
-			autoPlay: true,
-			// 间隔时间
-			playInterval: 3000,
-			// 位置
-			left: '10%',
-			right: '10%',
-			bottom: '0%',
-			width: '80%',
-			// 轴的文本标签
-			label: {
-				// 默认状态
-				normal: {
-					textStyle: {
-						color: '#ddd'
-					}
-				},
-				// 高亮状态
-				emphasis: {
-					textStyle: {
-						color: '#fff'
-					}
-				}
-			},
-			// 文字大小
-			symbolSize: 10,
-			// 线的样式
-			lineStyle: {
-				color: '#555'
-			},
-			// 选中点的样式
-			checkpointStyle: {
-				borderColor: '#888',
-				borderWidth: 2
-			},
-			// 控件样式
-			controlStyle: {
-				// 上一步按钮
-				showNextBtn: true,
-				// 下一步按钮
-				showPrevBtn: true,
-				// 默认样式
-				normal: {
-					color: '#666',
-					borderColor: '#666'
-				},
-				// 高亮样式
-				emphasis: {
-					color: '#aaa',
-					borderColor: '#aaa'
-				}
-			}
-		},
-		// 柱形图右侧展示
-		baseOption: {
-			grid: {
-				right: '2%',
-				top: '15%',
-				bottom: '10%',
-				width: '20%'
-			},
+  let options = {
+    title: {
+      text: '深圳位置分布图',
+      left: 'left',
+      textStyle: {
+        color: '#ccc',
+        fontSize: 30
+      }
+    },
+    geo: {
+      show: true,
+      label: {
+        show: true, // 设置标签显示
+        color: '#fff', // 标签文字颜色
+        fontSize: 12 // 标签文字大小
+      },
+      emphasis: {
+        // 设置鼠标移入时的高亮样式
+        label: {
+          color: '#fff', // 鼠标移入时标签文字颜色
+          fontSize: 15 // 鼠标移入时标签文字大小
+        }
+      },
+      map: 'shenzhen',
+      roam: true,
+      itemStyle: {
+        normal: {
+          borderColor: 'rgba(147, 235, 248, 1)',
+          borderWidth: 1,
+          areaColor: {
+            type: 'radial',
+            x: 0.5,
+            y: 0.5,
+            r: 0.5,
+            colorStops: [
+              {
+                offset: 0,
+                color: 'rgba(147, 235, 248, 0)'
+              },
+              {
+                offset: 1,
+                color: 'rgba(147, 235, 248, .2)'
+              }
+            ],
+            globalCoord: false
+          }
+        },
+        emphasis: {
+          areaColor: '#389BB7',
+          borderWidth: 0
+        }
+      }
+    },
+    series: [
+      {
+        type: 'scatter',
+        coordinateSystem: 'geo',
+        data: processedData.value,
+        symbolSize: 10,
+        label: {
+          show: false // 默认不显示标签
+        },
+        emphasis: {
+          label: {
+            show: false // 鼠标移入时不显示默认标签
+          }
+        },
+        itemStyle: {
+          color: '#b7eb8f', // 散点的颜色
+          shadowBlur: 10,
+          shadowColor: '#333' // 阴影颜色
+        }
+      }
+    ]
+  }
 
-			// 中国地图
-			geo: {
-				// 展示
-				show: true,
-				// 中国地图
-				map: 'china',
-				// 开启缩放
-				roam: true,
-				// 初始缩放
-				zoom: 0.8,
-				// 中心点
-				center: [113.83531246, 34.0267395887],
-				// 默认状态的省份样式
-				itemStyle: {
-					normal: {
-						// 边框色值
-						borderColor: 'rgba(147, 235, 248, 1)',
-						// 边框宽度
-						borderWidth: 1,
-						// 区域颜色
-						areaColor: {
-							// 经向色值
-							type: 'radial',
-							x: 0.5,
-							y: 0.5,
-							r: 0.5,
-							colorStops: [
-								// 0% 处的颜色
-								{
-									offset: 0,
-									color: 'rgba(147, 235, 248, 0)'
-								},
-								// 100% 处的颜色
-								{
-									offset: 1,
-									color: 'rgba(147, 235, 248, .2)'
-								}
-							],
-							// 缺省为 false
-							globalCoord: false
-						}
-					},
-					// 鼠标移入的色值
-					emphasis: {
-						areaColor: '#389BB7',
-						borderWidth: 0
-					}
-				}
-			}
-		},
-		// 绑定时间轴的多个图表
-		options: []
-	}
+  if (mChart) {
+    mChart.setOption(options)
+    mChart.on('mouseover', (params) => {
+      if (params.componentType === 'series') {
+        tooltipData.name = params.data.name
+        tooltipData.address = params.data.address
+        tooltipStyle.left = params.event.event.clientX + 'px'
+        tooltipStyle.top = params.event.event.clientY + 'px'
+        tooltipVisible.value = true
+      }
+    })
 
-	// 为每一年度的图表添加数据
-	props.data.voltageLevel.forEach((item, index) => {
-		options.options.push({
-			// 背景色
-			backgroundColor: '#142037',
-			title: [
-				// 主标题，对应地图
-				{
-					text: '2019-2023 年度数据统计',
-					left: '0%',
-					top: '0',
-					textStyle: {
-						color: '#ccc',
-						fontSize: 30
-					}
-				},
-				// 副标题，对应柱形图
-				{
-					id: 'statistic',
-					text: item + '年数据统计情况',
-					right: '0%',
-					top: '4%',
-					textStyle: {
-						color: '#ccc',
-						fontSize: 20
-					}
-				}
-			],
-			// X 轴配置
-			xAxis: {
-				// 数据轴
-				type: 'value',
-				// 脱离 0 值比例
-				scale: true,
-				// 位置
-				position: 'top',
-				// 不显示分割线
-				splitLine: {
-					show: false
-				},
-				// 不显示轴线
-				axisLine: {
-					show: false
-				},
-				// 不显示刻度尺
-				axisTick: {
-					show: false
-				},
-				// 类别文字
-				axisLabel: {
-					margin: 2,
-					textStyle: {
-						color: '#aaa'
-					}
-				}
-			},
-			// Y 轴
-			yAxis: {
-				// 选项轴
-				type: 'category',
-				// 轴线
-				axisLine: {
-					show: true,
-					lineStyle: {
-						color: '#ddd'
-					}
-				},
-				// 轴刻度
-				axisTick: {
-					show: false,
-					lineStyle: {
-						color: '#ddd'
-					}
-				},
-				// 轴标签
-				axisLabel: {
-					interval: 0,
-					textStyle: {
-						color: '#ddd'
-					}
-				},
-				// 根据年份，获取对应数据
-				data: props.data.categoryData[item].map((item) => item.name)
-			},
-			// 核心配置
-			series: [
-				// 柱形图
-				{
-					zlevel: 1.5,
-					// 柱形图
-					type: 'bar',
-					// 每个柱子的色值
-					itemStyle: {
-						normal: {
-							color: props.data.colors[index]
-						}
-					},
-					// 根据年份，获取对应数据
-					data: props.data.categoryData[item].map((item) => item.value)
-				},
-				// 散点图
-				{
-					// 散点（气泡）图
-					type: 'effectScatter',
-					// 使用地理坐标系
-					coordinateSystem: 'geo',
-					// 数据
-					data: props.data.topData[item],
-					// 标记大小
-					symbolSize: function (val) {
-						return val[2] / 4
-					},
-					// 绘制完成后显示特效
-					showEffectOn: 'render',
-					// 展示涟漪特效
-					rippleEffect: {
-						brushType: 'stroke'
-					},
-					// 文字
-					label: {
-						normal: {
-							formatter: '{b}',
-							position: 'right',
-							show: true
-						}
-					},
-					// 每一项的配置
-					itemStyle: {
-						normal: {
-							color: props.data.colors[index],
-							// 阴影配置
-							shadowBlur: 5,
-							shadowColor: props.data.colors[index]
-						}
-					},
-					zlevel: 1
-				}
-			]
-		})
-	})
-
-	mChart.setOption(options)
+    mChart.on('mouseout', () => {
+      tooltipVisible.value = false
+    })
+  }
 }
 </script>
 
-<style lang="scss" scoped></style>
+<style scoped>
+.tooltip {
+  z-index: 1000;
+  max-width: 200px;
+  word-wrap: break-word;
+}
+</style>

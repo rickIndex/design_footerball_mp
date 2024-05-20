@@ -1,5 +1,9 @@
 import { createApp } from 'vue'
 import './style.css'
 import App from './App.vue'
+import router from './routes/index.js'
+import { mountModal } from './utils/modalManager';
 
-createApp(App).mount('#app')
+mountModal();
+
+createApp(App).use(router).mount('#app')
